@@ -175,7 +175,7 @@ class FanAccessory extends SwitchAccessory {
 
     // 60% -> 100%
     
-    const newStep = Math.round((state.fanSpeed / 100) * maxStep);
+    const newStep = Math.max(Math.min(Math.round((state.fanSpeed / 100) * maxStep), maxStep), minStep);
     const diffStep = newStep - state.lastStep;
     const fanSpeedHex = diffStep >= 0 ? fanSpeedUpHex : fanSpeedDownHex;
     hexData = [{
