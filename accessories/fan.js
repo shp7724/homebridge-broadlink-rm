@@ -10,6 +10,7 @@ class FanAccessory extends SwitchAccessory {
 
     state.lastStep = Math.ceil((state.fanSpeed / 100) * 24);
     this.locked = false;
+    this.lastFanSpeedTimestamp = new Date().getTime();
 
     // Defaults
     config.showSwingMode =
@@ -128,11 +129,14 @@ class FanAccessory extends SwitchAccessory {
     }
 
     // reset swingMode to default when turned off
-    if (!!this.state.switchState) {
-      serviceManager.setCharacteristic(
-        Characteristic.SwingMode,
-        0
-      );
+    if (!this.state.switchState) {
+      setTimeout(()=> {
+        serviceManager.setCharacteristic(
+          Characteristic.SwingMode,
+          0
+        );
+        log(`set SwingMode to 0`);
+      }, 1000);
     }
 
     if (config.defaultSpeedStep && config.stepSize) {
@@ -160,25 +164,27 @@ class FanAccessory extends SwitchAccessory {
     const minStep = 1;  // 1%
     const maxStep = 24; // 100%
 
-    if (this.locked) {
+    
+    if (this.locked || new Date().getTime() - this.lastFanSpeedTimestamp < 500) {
+      log(`failed to acquire lock`);
       return;
     }
     this.locked = true;
     log(`lock acquired`);
-
+    
+    this.reset();
+    
     if (state.lastStep === undefined) {
       log(`lock return`);
       return;
     }
-
-    this.reset();
 
     // 60% -> 100%
     
     const newStep = Math.max(Math.min(Math.round((state.fanSpeed / 100) * maxStep), maxStep), minStep);
     const diffStep = newStep - state.lastStep;
     const fanSpeedHex = diffStep >= 0 ? fanSpeedUpHex : fanSpeedDownHex;
-    hexData = [{
+    hexData = diffStep === 0 ? [] : [{
       "data": fanSpeedHex,
       "sendCount": Math.abs(diffStep),
       "interval": 0.5,
@@ -191,6 +197,7 @@ class FanAccessory extends SwitchAccessory {
     await this.performSend(hexData).then(()=>{
         this.locked = false;
         state.lastStep = newStep; // update again
+        this.lastFanSpeedTimestamp = new Date().getTime();
         log(`unlocked`);
     });
     
