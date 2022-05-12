@@ -8,6 +8,9 @@ class FanAccessory extends SwitchAccessory {
     super.setDefaults();
     let { config, state } = this;
 
+    state.lastStep = Math.ceil((state.fanSpeed / 100) * 24);
+    this.locked = false;
+
     // Defaults
     config.showSwingMode =
       config.hideSwingMode === true || config.showSwingMode === false
@@ -79,7 +82,7 @@ class FanAccessory extends SwitchAccessory {
       if (state.switchState && enableAutoOff) {
         if (logLevel <= 2) {
           log(
-            `${name} setSwitchState: (automatically turn off in ${onDuration} seconds)`
+            `${name} setSwitchStateOff: (automatically turn off in ${onDuration} seconds)`
           );
         }
 
@@ -99,7 +102,7 @@ class FanAccessory extends SwitchAccessory {
       if (!state.switchState && enableAutoOn) {
         if (logLevel <= 2) {
           log(
-            `${name} setSwitchState: (automatically turn on in ${offDuration} seconds)`
+            `${name} setSwitchStateOn: (automatically turn on in ${offDuration} seconds)`
           );
         }
 
@@ -112,9 +115,24 @@ class FanAccessory extends SwitchAccessory {
   }
 
   async setSwitchState(hexData, previousValue) {
-    const { config, state, serviceManager } = this;
+    const { config, state, serviceManager, log } = this;
+
     if (!this.state.switchState) {
       this.lastFanSpeed = undefined;
+    }
+
+    // do not try to turn on if already on
+    if (!!previousValue && !!this.state.switchState) {
+      log(`already on. skip sending ${hexData}`);
+      return;
+    }
+
+    // reset swingMode to default when turned off
+    if (!!this.state.switchState) {
+      serviceManager.setCharacteristic(
+        Characteristic.SwingMode,
+        0
+      );
     }
 
     if (config.defaultSpeedStep && config.stepSize) {
@@ -130,87 +148,52 @@ class FanAccessory extends SwitchAccessory {
       );
     }
 
+    
+
     super.setSwitchState(hexData, previousValue);
   }
 
   async setFanSpeed(hexData) {
     const { config, data, host, log, state, name, logLevel } = this;
+    const fanSpeedUpHex = data.fanSpeedUp;
+    const fanSpeedDownHex = data.fanSpeedDown;
+    const minStep = 1;  // 1%
+    const maxStep = 24; // 100%
 
-    this.reset();
-
-    // Create an array of speeds specified in the data config
-    const foundSpeeds = [];
-    const allHexKeys = Object.keys(data || {});
-
-    allHexKeys.forEach((key) => {
-      const parts = key.split("fanSpeed");
-
-      if (parts.length !== 2) {
-        return;
-      }
-
-      foundSpeeds.push(parts[1]);
-    });
-
-    if (config.speedCycle && config.speedSteps) {
-      for (let i = 1; i <= config.speedSteps; i++) {
-        foundSpeeds.push(config.stepSize * i);
-      }
+    if (this.locked) {
+      return;
     }
+    this.locked = true;
+    log(`lock acquired`);
 
-    if (foundSpeeds.length === 0) {
-      return log(`${name} setFanSpeed: No fan speed hex codes provided.`);
-    }
-
-    // Find speed closest to the one requested
-    const closest = foundSpeeds.reduce((prev, curr) =>
-      Math.abs(curr - state.fanSpeed) < Math.abs(prev - state.fanSpeed)
-        ? curr
-        : prev
-    );
-    if (logLevel <= 2) {
-      log(`${name} setFanSpeed: (closest: ${closest})`);
-    }
-
-    if (this.lastFanSpeed === closest) {
+    if (state.lastStep === undefined) {
+      log(`lock return`);
       return;
     }
 
-    // Get the closest speed's hex data
-    hexData = data[`fanSpeed${closest}`];
+    this.reset();
 
-    if (config.speedCycle) {
-      let fanSpeedHexData = data.fanSpeed;
-      let fanSpeed = this.lastFanSpeed;
-      hexData = [];
+    // 60% -> 100%
+    
+    const newStep = Math.round((state.fanSpeed / 100) * maxStep);
+    const diffStep = newStep - state.lastStep;
+    const fanSpeedHex = diffStep >= 0 ? fanSpeedUpHex : fanSpeedDownHex;
+    hexData = [{
+      "data": fanSpeedHex,
+      "sendCount": Math.abs(diffStep),
+      "interval": 0.5,
+      "pause": 0
+    }]
+    log(`prevStep: ${state.lastStep}, newStep: ${newStep}, diffStep: ${diffStep}`);
+    state.lastStep = newStep;
 
-      if (typeof fanSpeedHexData === "string") {
-        fanSpeedHexData = {
-          data: fanSpeedHexData,
-        };
-      }
-
-      if (fanSpeed > closest) {
-        while (fanSpeed < config.speedSteps * config.stepSize) {
-          hexData.push(fanSpeedHexData);
-          fanSpeed += config.stepSize;
-        }
-
-        fanSpeed = 0;
-      }
-
-      if (fanSpeed < closest) {
-        while (fanSpeed < closest) {
-          hexData.push(fanSpeedHexData);
-          fanSpeed += config.stepSize;
-        }
-      }
-    }
-
-    this.lastFanSpeed = closest;
-
-    await this.performSend(hexData);
-
+    log(`perform send ${JSON.stringify(hexData)}`)
+    await this.performSend(hexData).then(()=>{
+        this.locked = false;
+        state.lastStep = newStep; // update again
+        log(`unlocked`);
+    });
+    
     this.checkAutoOnOff();
   }
 
