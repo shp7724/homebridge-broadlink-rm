@@ -216,7 +216,14 @@ class FanAccessory extends SwitchAccessory {
 
   setupServiceManager() {
     const { config, data, name, serviceManagerType } = this;
-    const { on, off, clockwise, counterClockwise, swingToggle } = data || {};
+    const {
+      on,
+      off,
+      clockwise,
+      counterClockwise,
+      swingToggleOn,
+      swingToggleOff,
+    } = data || {};
 
     this.serviceManager = new ServiceManagerTypes[serviceManagerType](
       name,
@@ -247,8 +254,8 @@ class FanAccessory extends SwitchAccessory {
         setMethod: this.setCharacteristicValue,
         bind: this,
         props: {
-          onData: swingToggle,
-          offData: swingToggle,
+          onData: swingToggleOn,
+          offData: swingToggleOff,
           setValuePromise: this.performSend.bind(this),
         },
       });
