@@ -1,7 +1,7 @@
-const ServiceManagerTypes = require('../helpers/serviceManagerTypes');
-const SwitchAccessory = require('./switch');
-const catchDelayCancelError = require('../helpers/catchDelayCancelError');
-const delayForDuration = require('../helpers/delayForDuration');
+const ServiceManagerTypes = require("../helpers/serviceManagerTypes");
+const SwitchAccessory = require("./switch");
+const catchDelayCancelError = require("../helpers/catchDelayCancelError");
+const delayForDuration = require("../helpers/delayForDuration");
 
 class FanAccessory extends SwitchAccessory {
   setDefaults() {
@@ -9,16 +9,27 @@ class FanAccessory extends SwitchAccessory {
     let { config, state } = this;
 
     // Defaults
-    config.showSwingMode = config.hideSwingMode === true || config.showSwingMode === false ? false : true;
-    config.showRotationDirection = config.hideRotationDirection === true || config.showRotationDirection === false ? false : true;
-    config.stepSize = isNaN(config.stepSize) || config.stepSize > 100 || config.stepSize < 1 ? 1 : config.stepSize;
+    config.showSwingMode =
+      config.hideSwingMode === true || config.showSwingMode === false
+        ? false
+        : true;
+    config.showRotationDirection =
+      config.hideRotationDirection === true ||
+      config.showRotationDirection === false
+        ? false
+        : true;
+    config.stepSize =
+      isNaN(config.stepSize) || config.stepSize > 100 || config.stepSize < 1
+        ? 1
+        : config.stepSize;
 
     if (config.speedSteps) {
       config.stepSize = Math.floor(100 / config.speedSteps);
     }
 
     if (config.alwaysResetToDefaults) {
-      state.fanSpeed = (config.defaultFanSpeed !== undefined) ? config.defaultFanSpeed : 100;
+      state.fanSpeed =
+        config.defaultFanSpeed !== undefined ? config.defaultFanSpeed : 100;
 
       if (config.defaultSpeedStep && config.stepSize) {
         state.fanSpeed = config.defaultSpeedStep * config.stepSize;
@@ -47,7 +58,9 @@ class FanAccessory extends SwitchAccessory {
       this.autoOnTimeoutPromise = null;
     }
 
-    if (this.serviceManager.getCharacteristic(Characteristic.Active) === undefined) {
+    if (
+      this.serviceManager.getCharacteristic(Characteristic.Active) === undefined
+    ) {
       this.serviceManager.setCharacteristic(Characteristic.Active, false);
     }
   }
@@ -64,7 +77,11 @@ class FanAccessory extends SwitchAccessory {
       let { disableAutomaticOff, enableAutoOff, onDuration } = config;
 
       if (state.switchState && enableAutoOff) {
-        if (logLevel <= 2) {log(`${name} setSwitchState: (automatically turn off in ${onDuration} seconds)`);}
+        if (logLevel <= 2) {
+          log(
+            `${name} setSwitchState: (automatically turn off in ${onDuration} seconds)`
+          );
+        }
 
         this.autoOffTimeoutPromise = delayForDuration(onDuration);
         await this.autoOffTimeoutPromise;
@@ -80,7 +97,11 @@ class FanAccessory extends SwitchAccessory {
       let { disableAutomaticOn, enableAutoOn, offDuration } = config;
 
       if (!state.switchState && enableAutoOn) {
-        if (logLevel <= 2) {log(`${name} setSwitchState: (automatically turn on in ${offDuration} seconds)`);}
+        if (logLevel <= 2) {
+          log(
+            `${name} setSwitchState: (automatically turn on in ${offDuration} seconds)`
+          );
+        }
 
         this.autoOnTimeoutPromise = delayForDuration(offDuration);
         await this.autoOnTimeoutPromise;
@@ -103,7 +124,10 @@ class FanAccessory extends SwitchAccessory {
     // Reset the fan speed back to the default speed when turned off
     if (this.state.switchState === false && config.alwaysResetToDefaults) {
       this.setDefaults();
-      serviceManager.setCharacteristic(Characteristic.RotationSpeed, state.fanSpeed);
+      serviceManager.setCharacteristic(
+        Characteristic.RotationSpeed,
+        state.fanSpeed
+      );
     }
 
     super.setSwitchState(hexData, previousValue);
@@ -119,12 +143,14 @@ class FanAccessory extends SwitchAccessory {
     const allHexKeys = Object.keys(data || {});
 
     allHexKeys.forEach((key) => {
-      const parts = key.split('fanSpeed');
+      const parts = key.split("fanSpeed");
 
-      if (parts.length !== 2) {return;}
+      if (parts.length !== 2) {
+        return;
+      }
 
-      foundSpeeds.push(parts[1])
-    })
+      foundSpeeds.push(parts[1]);
+    });
 
     if (config.speedCycle && config.speedSteps) {
       for (let i = 1; i <= config.speedSteps; i++) {
@@ -133,13 +159,18 @@ class FanAccessory extends SwitchAccessory {
     }
 
     if (foundSpeeds.length === 0) {
-
-      return log(`${name} setFanSpeed: No fan speed hex codes provided.`)
+      return log(`${name} setFanSpeed: No fan speed hex codes provided.`);
     }
 
     // Find speed closest to the one requested
-    const closest = foundSpeeds.reduce((prev, curr) => Math.abs(curr - state.fanSpeed) < Math.abs(prev - state.fanSpeed) ? curr : prev);
-    if (logLevel <= 2) {log(`${name} setFanSpeed: (closest: ${closest})`);}
+    const closest = foundSpeeds.reduce((prev, curr) =>
+      Math.abs(curr - state.fanSpeed) < Math.abs(prev - state.fanSpeed)
+        ? curr
+        : prev
+    );
+    if (logLevel <= 2) {
+      log(`${name} setFanSpeed: (closest: ${closest})`);
+    }
 
     if (this.lastFanSpeed === closest) {
       return;
@@ -153,10 +184,10 @@ class FanAccessory extends SwitchAccessory {
       let fanSpeed = this.lastFanSpeed;
       hexData = [];
 
-      if (typeof fanSpeedHexData === 'string') {
+      if (typeof fanSpeedHexData === "string") {
         fanSpeedHexData = {
-          data: fanSpeedHexData
-        }
+          data: fanSpeedHexData,
+        };
       }
 
       if (fanSpeed > closest) {
@@ -187,12 +218,16 @@ class FanAccessory extends SwitchAccessory {
     const { config, data, name, serviceManagerType } = this;
     const { on, off, clockwise, counterClockwise, swingToggle } = data || {};
 
-    this.serviceManager = new ServiceManagerTypes[serviceManagerType](name, Service.Fanv2, this.log);
+    this.serviceManager = new ServiceManagerTypes[serviceManagerType](
+      name,
+      Service.Fanv2,
+      this.log
+    );
 
     this.setDefaults();
 
     this.serviceManager.addToggleCharacteristic({
-      name: 'switchState',
+      name: "switchState",
       type: Characteristic.Active,
       getMethod: this.getCharacteristicValue,
       setMethod: this.setCharacteristicValue,
@@ -200,13 +235,13 @@ class FanAccessory extends SwitchAccessory {
       props: {
         onData: on,
         offData: off,
-        setValuePromise: this.setSwitchState.bind(this)
-      }
+        setValuePromise: this.setSwitchState.bind(this),
+      },
     });
 
     if (config.showSwingMode) {
       this.serviceManager.addToggleCharacteristic({
-        name: 'swingMode',
+        name: "swingMode",
         type: Characteristic.SwingMode,
         getMethod: this.getCharacteristicValue,
         setMethod: this.setCharacteristicValue,
@@ -214,13 +249,13 @@ class FanAccessory extends SwitchAccessory {
         props: {
           onData: swingToggle,
           offData: swingToggle,
-          setValuePromise: this.performSend.bind(this)
-        }
+          setValuePromise: this.performSend.bind(this),
+        },
       });
     }
 
     this.serviceManager.addToggleCharacteristic({
-      name: 'fanSpeed',
+      name: "fanSpeed",
       type: Characteristic.RotationSpeed,
       getMethod: this.getCharacteristicValue,
       setMethod: this.setCharacteristicValue,
@@ -229,13 +264,13 @@ class FanAccessory extends SwitchAccessory {
         setValuePromise: this.setFanSpeed.bind(this),
         minStep: config.stepSize,
         minValue: 0,
-        maxValue: 100
-      }
+        maxValue: 100,
+      },
     });
 
     if (config.showRotationDirection) {
       this.serviceManager.addToggleCharacteristic({
-        name: 'rotationDirection',
+        name: "rotationDirection",
         type: Characteristic.RotationDirection,
         getMethod: this.getCharacteristicValue,
         setMethod: this.setCharacteristicValue,
@@ -243,8 +278,8 @@ class FanAccessory extends SwitchAccessory {
         props: {
           onData: counterClockwise,
           offData: clockwise,
-          setValuePromise: this.performSend.bind(this)
-        }
+          setValuePromise: this.performSend.bind(this),
+        },
       });
     }
   }
